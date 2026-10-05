@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ChatCompletionContentPart, ChatCompletionUserMessageParam } from "openai/resources/chat/completions.js";
 import type { RetrievedRecipePage } from "../retriever/types.js";
 import type { RecipeInput } from "../recipes/schema.js";
 import type { RecipeGenerationOptions, RecipeGenerator } from "./types.js";
@@ -20,7 +21,7 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
   constructor(options: OpenAIRecipeGeneratorOptions) {
     this.client = options.client ?? new OpenAI();
     this.defaults = {
-      model: options.model ?? process.env.OPENAI_MODEL ?? "gpt-5.5",
+      model: options.model ?? process.env.OPENAI_MODEL ?? "gpt-oss:120b",
       reasoningEffort: options.reasoningEffort ?? parseReasoningEffort(process.env.OPENAI_REASONING_EFFORT),
       locale: options.locale ?? "de-DE",
       maxCorrectionAttempts: options.maxCorrectionAttempts ?? 3,
@@ -78,52 +79,39 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
       ].join("\n")
       : "";
 
-    const response = await this.client.responses.create({
+    // Ollama-compatible transport: /v1/chat/completions with a strict JSON Schema response
+    // format. Ollama's /v1/responses does not support text.format.json_schema, so the
+    // generator targets chat.completions (supported by both OpenAI-compatible servers).
+    const response = await this.client.chat.completions.create({
       model: options.model,
-      reasoning: { effort: options.reasoningEffort },
-      text: {
-        format: {
-          type: "json_schema",
+      reasoning_effort: options.reasoningEffort,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
           name: adapter.id === "tm" ? "thermomix_cookidoo_recipe" : "monsieur_cuisine_smart_recipe",
           strict: true,
-          description: adapter.id === "tm" ? "Model-friendly Thermomix Cookidoo recipe input." : "Model-friendly Monsieur Cuisine Smart recipe input.",
           schema: strictSchema
         }
       },
-      instructions: adapter.getPromptInstructions(options.locale, options),
-      input: [
+      messages: [
+        {
+          role: "system",
+          content: adapter.getPromptInstructions(options.locale, options)
+        },
         {
           role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: [
-                `Source URL: ${page.finalUrl || page.url}`,
-                `Detected title: ${page.title}`,
-                `Preferred locale: ${options.locale}`,
-                "",
-                "Full schema with detailed descriptions:",
-                fullSchemaText,
-                correctionText,
-                "",
-                "Recipe page as Markdown:",
-                page.markdown
-              ].filter(Boolean).join("\n")
-            },
-            ...page.images
-              .filter((image) => image.dataUrl)
-              .slice(0, 3)
-              .map((image, index) => ({
-                type: "input_image" as const,
-                image_url: image.dataUrl,
-                detail: index === 0 ? "high" as const : "low" as const
-              }))
-          ]
+          // The wire API (and Ollama) accept image_url parts on user messages, but the
+          // SDK v6 user-message param type narrows content to text/refusal — one scoped cast.
+          content: buildUserContent(page, options, fullSchemaText, correctionText) as ChatCompletionUserMessageParam["content"]
         }
       ]
     });
 
-    return JSON.parse(response.output_text);
+    const content = response.choices[0]?.message?.content;
+    if (typeof content !== "string" || content.trim() === "") {
+      throw new Error("Chat completion returned an empty message content.");
+    }
+    return JSON.parse(stripCodeFences(content));
   }
 }
 
@@ -159,6 +147,53 @@ function validateExcludedModes(output: unknown, excludeModes: string[] = []): st
   });
 
   return errors;
+}
+
+/**
+ * Ollama-compatible servers may wrap JSON in markdown code fences despite the
+ * strict response_format; strip them before parsing.
+ */
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const fence = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
+  return fence && typeof fence[1] === "string" ? fence[1].trim() : trimmed;
+}
+
+/**
+ * Builds the user message content: the recipe brief plus up to three base64 image parts.
+ */
+function buildUserContent(
+  page: RetrievedRecipePage,
+  options: Required<RecipeGenerationOptions>,
+  fullSchemaText: string,
+  correctionText: string
+): ChatCompletionContentPart[] {
+  const textPart: ChatCompletionContentPart = {
+    type: "text",
+    text: [
+      `Source URL: ${page.finalUrl || page.url}`,
+      `Detected title: ${page.title}`,
+      `Preferred locale: ${options.locale}`,
+      "",
+      "Full schema with detailed descriptions:",
+      fullSchemaText,
+      correctionText,
+      "",
+      "Recipe page as Markdown:",
+      page.markdown
+    ].filter(Boolean).join("\n")
+  };
+  const imageParts: ChatCompletionContentPart[] = page.images
+    .filter((image): image is typeof image & { dataUrl: string } => typeof image.dataUrl === "string" && image.dataUrl !== "")
+    .slice(0, 3)
+    .map((image, index) => ({
+      type: "image_url",
+      image_url: {
+        url: image.dataUrl,
+        detail: index === 0 ? "high" : "low"
+      }
+    }));
+  return [textPart, ...imageParts];
 }
 
 function parseReasoningEffort(value: string | undefined): ReasoningEffort {

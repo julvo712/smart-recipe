@@ -52,15 +52,16 @@ export async function ensureOpenAIKey(isInteractive: boolean, configPath: string
   }
 
   blankLine();
-  printWarning("No OpenAI API key found.");
-  console.log(`  You can get one at ${colorCyan("https://platform.openai.com/api-keys")}`);
+  printWarning("No API key found.");
+  console.log(`  Ollama keys: ${colorCyan("https://ollama.com/settings/keys")} | OpenAI keys: ${colorCyan("https://platform.openai.com/api-keys")}`);
   blankLine();
 
   const apiKey = await password({
-    message: "  Paste your OpenAI API key",
+    message: "  Paste your API key",
     validate: (v) => {
       if (!v.trim()) return "API key cannot be empty.";
-      if (!/^(sk-|proj-)/.test(v.trim())) return "This doesn't look like a valid OpenAI key (expected sk-… or proj-…).";
+      if (/^ollama$/i.test(v.trim())) return true; // local Ollama servers ignore the key
+      if (/^(sk-|proj-)/.test(v.trim())) return true; // OpenAI-format key
       return true;
     }
   });

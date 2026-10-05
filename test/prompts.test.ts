@@ -89,27 +89,33 @@ describe("LLM prompt guidance", () => {
   it("passes the requested locale into OpenAI generation", async () => {
     let request: unknown;
     const client = {
-      responses: {
-        create: async (body: unknown) => {
-          request = body;
-          return {
-            output_text: JSON.stringify({
-              title: "Tomato Soup",
-              description: "A bright soup.",
-              settings: { locale: "en-US", complexityId: 22 },
-              categoryIds: [],
-              nutrients: [],
-              servingSize: {
-                amount: 4,
-                unit: "servings",
-                instruction: "",
-                preparationTime: 10,
-                readyInTime: 35,
-                ingredientGroups: [{ name: "Soup", ingredients: [{ name: "tomatoes", amount: 800, unit: "g", isOptional: false }] }],
-                steps: [{ title: "Serve", description: "Serve warm.", mode: { type: "none" } }]
-              }
-            })
-          };
+      chat: {
+        completions: {
+          create: async (body: unknown) => {
+            request = body;
+            return {
+              choices: [{
+                message: {
+                  content: JSON.stringify({
+                    title: "Tomato Soup",
+                    description: "A bright soup.",
+                    settings: { locale: "en-US", complexityId: 22 },
+                    categoryIds: [],
+                    nutrients: [],
+                    servingSize: {
+                      amount: 4,
+                      unit: "servings",
+                      instruction: "",
+                      preparationTime: 10,
+                      readyInTime: 35,
+                      ingredientGroups: [{ name: "Soup", ingredients: [{ name: "tomatoes", amount: 800, unit: "g", isOptional: false }] }],
+                      steps: [{ title: "Serve", description: "Serve warm.", mode: { type: "none" } }]
+                    }
+                  })
+                }
+              }]
+            };
+          }
         }
       }
     };
@@ -121,8 +127,8 @@ describe("LLM prompt guidance", () => {
 
     await generator.generate(pageFixture, { locale: "en-US" });
 
-    expect((request as { instructions: string }).instructions).toContain("set settings.locale to en-US");
-    expect((request as { input: Array<{ content: Array<{ text: string }> }> }).input[0].content[0].text).toContain("Preferred locale: en-US");
+    expect((request as { messages: Array<{ content?: unknown }> }).messages[0].content).toContain("set settings.locale to en-US");
+    expect((request as { messages: Array<{ content: Array<{ text: string }> }> }).messages[1].content[0].text).toContain("Preferred locale: en-US");
   });
 
   it("includes accessory and hardware rules with de-DE device terms", () => {

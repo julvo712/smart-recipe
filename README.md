@@ -83,7 +83,7 @@ You need:
 
 * **Node.js 20.18 or newer**
 * **Git**
-* an **OpenAI API key**
+* an **API key with an OpenAI-compatible provider** (default: Ollama cloud — [ollama.com/settings/keys](https://ollama.com/settings/keys); OpenAI also works)
 * a **Monsieur Cuisine / Lidl Plus** account OR a **Thermomix / Cookidoo** account
 * a **Monsieur Cuisine Smart** OR a **Thermomix TM7 / TM6 / TM5** device
 
@@ -133,13 +133,14 @@ If you run `import-url` without an API key configured, SmartRecipe will ask for 
 Alternatively, set it in advance via a `.env` file, `~/.smart-recipe`, or your shell:
 
 ```bash
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=<your-ollama-or-openai-key>
+OPENAI_BASE_URL=https://ollama.com/v1  # or a local server, e.g. http://localhost:11434/v1
 ```
 
 Default recipe generation settings:
 
 ```bash
-OPENAI_MODEL=gpt-5.5
+OPENAI_MODEL=gpt-oss:120b
 OPENAI_REASONING_EFFORT=medium
 ```
 
@@ -551,7 +552,8 @@ smart-recipe create "https://example.com/recipe"
 
 ```bash
 # Set credentials once
-export OPENAI_API_KEY="sk-..."
+export OPENAI_API_KEY="<your-key>"
+export OPENAI_BASE_URL="https://ollama.com/v1"  # local: http://localhost:11434/v1
 export MC_COOKIE="..."
 
 # Always upload without prompts
@@ -638,8 +640,9 @@ Node.js must be `20.18` or newer.
 
 | Variable                  |       Default | Purpose                                                   |
 | ------------------------- | ------------: | --------------------------------------------------------- |
-| `OPENAI_API_KEY`          |         empty | Required OpenAI API key.                                  |
-| `OPENAI_MODEL`            |     `gpt-5.5` | Recipe generation model.                                  |
+| `OPENAI_API_KEY`          |         empty | Required API key (Ollama or OpenAI).                                  |
+| `OPENAI_BASE_URL`         | `https://ollama.com/v1` | OpenAI-compatible chat endpoint.                                   |
+| `OPENAI_MODEL`            | `gpt-oss:120b` | Recipe generation model.                                  |
 | `OPENAI_REASONING_EFFORT` |      `medium` | Reasoning effort for recipe conversion.                   |
 | `OPENAI_IMAGE_MODEL`      | `gpt-image-2` | Image generation model.                                   |
 | `OPENAI_IMAGE_SIZE`       |   `1024x1024` | Generated image size.                                     |
