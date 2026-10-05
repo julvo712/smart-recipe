@@ -725,3 +725,54 @@ These projects provided invaluable references for Cookidoo API routes, authentic
 ## License
 
 MIT License. See [`LICENSE`](LICENSE).
+
+---
+
+## Ollama setup (julvo712 fork)
+
+This fork runs on any OpenAI-compatible endpoint; by default it targets **Ollama cloud** (`https://ollama.com/v1`), no OpenAI key needed.
+
+Get a key at [ollama.com/settings/keys](https://ollama.com/settings/keys), then:
+
+```bash
+export OPENAI_API_KEY=<your-key>
+export OPENAI_MODEL=gpt-oss:120b
+export OPENAI_VL_MODEL=qwen3-vl:8b   # only needed for import-photo; pick from https://ollama.com/search?c=vision
+export MC_LOCALE=en-US               # or de-DE, fr-FR, it-IT, pl-PL, cs-CZ
+```
+
+For a local Ollama server instead: `export OPENAI_BASE_URL=http://localhost:11434/v1` (API key value is ignored there).
+
+Image generation (the `--recreate-image` family) requires OpenAI's image API and is not usable through Ollama — use `--use-source-image` or `--no-image`.
+
+### Cookbook photos
+
+```bash
+smart-recipe import-photo cookbook-page.jpg              # single photo
+smart-recipe import-photo page1.jpg page2.jpg page3.jpg  # ordered multi-page recipe
+```
+
+Photos are transcribed verbatim by the vision model first (printed to the terminal for review), then flow through the normal generation pipeline.
+
+### Docker (arm64, on-demand)
+
+```bash
+docker build -t julvo712/smart-recipe:ollama .   # on the M4: builds native arm64
+./mcs.sh login-browser --device mc --save     # one-time Lidl Plus login; cookie persists in ~/.smart-recipe
+./mcs.sh create "https://example.com/recipe"  # web recipe -> draft
+./mcs.sh import-photo cookbook-page.jpg       # cookbook photo -> draft
+```
+
+State lives only in `$HOME/.smart-recipe` (mounted volume); the container is `--rm` per run. Secrets are never baked into the image.
+
+### Using it from an AI assistant (omo / Claude Code / Codex)
+
+Any coding agent can drive the CLI directly. Useful command sequence for cookbook sources: run `import-photo` to get the transcription, edit/adjust the text if the transcription shows an error, pipe the corrected markdown into `create-stdin --title "..."` for regeneration.
+
+### Maintenance policy
+
+Keep the diff against [upstream](https://github.com/gerkensm/smart-recipe) small:
+
+- Provider swap lives in `src/llm/openai-generator.ts` + `src/cli/import-workflow.ts`; photo ingestion is a self-contained module (`src/sources/photo-ocr.ts`; new test file). Everything else stays upstream.
+- Rebase monthly: `git fetch upstream && git rebase upstream/main`. Conflicts should only ever occur in the four files above; if upstream moves the prompt or schema, re-review that change before rebasing the fork.
+- Pin `OPENAI_MODEL` per environment; pin the `openai` npm package minor in the lockfile.
