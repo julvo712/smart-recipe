@@ -37,7 +37,7 @@ import {
 export { formatDraftsForTerminal, formatUserForTerminal } from "./formatters.js";
 import { marked, type MarkedExtension } from "marked";
 import { markedTerminal } from "marked-terminal";
-import { detectRecipeSource, fetchRecipeSourceAsPage, fetchRecipeSourceWithRaw, type RecipeSource } from "../sources/index.js";
+import { detectRecipeSource, fetchRecipeSourceAsPage, fetchRecipeSourceWithRaw, transcribeRecipePhotos, type RecipeSource } from "../sources/index.js";
 import { confirm, input, password as passwordPrompt } from "./prompts.js";
 import { resolveAuthInteractively } from "./auth-workflow.js";
 import { blankLine, colorDim, printError, printHeading, printStatus, printSuccess } from "./terminal.js";
@@ -385,6 +385,26 @@ program.commands.at(-1)!.action(async (options) => {
     images: []
   };
   await runImport(page, options, program.optsWithGlobals(), ["import-stdin"]);
+});
+
+program
+  .command("import-photo")
+  .alias("create-photo")
+  .description("Transcribe recipe photo(s) from a cookbook with a vision model, generate Smart recipe JSON, and optionally upload a draft.")
+  .argument("<paths...>", "Photo file paths (jpg/png/webp; multiple = ordered recipe pages)")
+  .option("--title <title>", "Custom recipe title");
+addImportOptions(program.commands.at(-1)!);
+program.commands.at(-1)!.action(async (paths, options) => {
+  const page = await transcribeRecipePhotos(paths as string[], {
+    title: options.title,
+    locale: options.locale
+  });
+  if (!program.optsWithGlobals().json) {
+    console.log(`\n=== Transcribed from ${paths.length} photo(s) ===\n`);
+    console.log(page.markdown);
+    console.log(`======================================\n`);
+  }
+  await runImport(page, options, program.optsWithGlobals(), ["import-photo", ...paths]);
 });
 
 // ─── Interactive import wizard ────────────────────────────────────────────────
