@@ -1,12 +1,6 @@
 ---
 name: mc-recipe-cli
-description: >
-  Use when the user wants to import, convert, or generate cooking recipes for the
-  Monsieur Cuisine Smart (MC3.0 / Lidlomix): from a recipe URL, a cookbook photo, a
-  text/PDF, or AI-generated content — turning them into guided step-by-step cooking
-  recipes that appear in their Monsieur Cuisine account and on the device. Also use
-  when the user mentions Monsieur Cuisine, MCS, Lidlomix, guided cooking, smart
-  cooker drafts, or reports errors from the smart-recipe CLI / mcs.sh wrapper.
+description: Use when the user wants to import, convert, or generate cooking recipes for the Monsieur Cuisine Smart (MC3.0 / Lidlomix) from a recipe URL, cookbook photo, text, or AI-generated content into guided step-by-step recipes; also when mentioning Monsieur Cuisine, guided cooking, smart cooker drafts, or errors from the smart-recipe CLI / mcs.sh.
 version: 0.1.0
 ---
 
