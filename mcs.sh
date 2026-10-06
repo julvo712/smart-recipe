@@ -19,15 +19,25 @@ STAGE="$(mktemp -d "$STATE_DIR/mcs-stage.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 
 if [[ "${1:-}" == "login-cookie" ]]; then
-  printf 'Paste the full Cookie header for www.monsieur-cuisine.com (DevTools → Network → any request → Cookie): '
-  read -r cookie
+  shift || true
+  cookie=""
+  if [[ "${1:-}" != "" ]]; then
+    cookie="$(cat "$1")"
+  elif command -v pbpaste >/dev/null 2>&1 && [[ -n "$(pbpaste)" ]]; then
+    cookie="$(pbpaste)"
+    echo "Using cookie from clipboard ($(printf '%s' "$cookie" | wc -c | tr -d ' ') chars)."
+  else
+    printf 'Paste the full Cookie header (or copy it to the clipboard first and rerun `mcs.sh login-cookie`): '
+    read -r cookie
+  fi
+  cookie="$(printf '%s' "$cookie" | tr -d '\n\r' | sed 's/[[:space:]]*$//')"
   [ -n "$cookie" ] || { echo "No cookie given." >&2; exit 2; }
   config="$STATE_DIR/config"
   touch "$config"
   grep -v '^MC_COOKIE=' "$config" > "$config.tmp" || true
   printf 'MC_COOKIE=%s\n' "$cookie" >> "$config.tmp"
   mv "$config.tmp" "$config"
-  echo "Saved MC_COOKIE to $config. Run ./mcs.sh doctor --device mc to verify."
+  echo "Saved MC_COOKIE ($(printf '%s' "$cookie" | wc -c | tr -d ' ') chars) to $config. Run ./mcs.sh doctor --device mc to verify."
   exit 0
 fi
 
