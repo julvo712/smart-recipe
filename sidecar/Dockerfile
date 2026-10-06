@@ -12,7 +12,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY --from=build /app/dist ./dist
-RUN npm ci --no-audit --no-fund --omit=dev && rm -rf node_modules/.cache
+RUN npm ci --no-audit --no-fund --omit=dev --ignore-scripts && rm -rf node_modules/.cache
 COPY sidecar ./sidecar
 EXPOSE 8200
 CMD ["node", "sidecar/server.mjs"]
