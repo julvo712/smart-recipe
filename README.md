@@ -140,8 +140,8 @@ OPENAI_BASE_URL=https://ollama.com/v1  # or a local server, e.g. http://localhos
 Default recipe generation settings:
 
 ```bash
-OPENAI_MODEL=gpt-oss:120b
-OPENAI_REASONING_EFFORT=medium
+OPENAI_MODEL=glm-5.3-flash
+OPENAI_REASONING_EFFORT=high
 ```
 
 Image generation defaults:
@@ -642,7 +642,7 @@ Node.js must be `20.18` or newer.
 | ------------------------- | ------------: | --------------------------------------------------------- |
 | `OPENAI_API_KEY`          |         empty | Required API key (Ollama or OpenAI).                                  |
 | `OPENAI_BASE_URL`         | `https://ollama.com/v1` | OpenAI-compatible chat endpoint.                                   |
-| `OPENAI_MODEL`            | `gpt-oss:120b` | Recipe generation model.                                  |
+| `OPENAI_MODEL`            | `glm-5.3-flash` | Recipe generation model (Ollama cloud).                       |
 | `OPENAI_REASONING_EFFORT` |      `medium` | Reasoning effort for recipe conversion.                   |
 | `OPENAI_IMAGE_MODEL`      | `gpt-image-2` | Image generation model.                                   |
 | `OPENAI_IMAGE_SIZE`       |   `1024x1024` | Generated image size.                                     |

@@ -21,8 +21,8 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
   constructor(options: OpenAIRecipeGeneratorOptions) {
     this.client = options.client ?? new OpenAI();
     this.defaults = {
-      model: options.model ?? process.env.OPENAI_MODEL ?? "gpt-oss:120b",
-      reasoningEffort: options.reasoningEffort ?? parseReasoningEffort(process.env.OPENAI_REASONING_EFFORT),
+      model: options.model ?? process.env.OPENAI_MODEL ?? "glm-5.3-flash",
+      reasoningEffort: options.reasoningEffort ?? parseReasoningEffort(process.env.OPENAI_REASONING_EFFORT ?? "high"),
       locale: options.locale ?? "de-DE",
       maxCorrectionAttempts: options.maxCorrectionAttempts ?? 3,
       excludeModes: options.excludeModes ?? [],
