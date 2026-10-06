@@ -188,7 +188,8 @@ export class MonsieurCuisineSmartClient {
       referer: this.recipeUrl(Number(recipeId))
     });
     const data = getRecord(result, "data");
-    const recipe = getRecord(data, "recipe") ?? data ?? result;
+    const single = getArray(data, "recipe");
+    const recipe = getRecord(data, "recipe") ?? (single.length ? single[0] : undefined) ?? data ?? result;
     this.assertVendorResponse(McRecipeResponseSchema, recipe, `api/v3/auth/user/recipes/${recipeId}`);
     return result;
   }
@@ -203,7 +204,8 @@ export class MonsieurCuisineSmartClient {
       referer: createRecipeUrl(locale)
     });
     const data = getRecord(result, "data");
-    const recipe = getRecord(data, "recipe") ?? data ?? result;
+    const single = getArray(data, "recipe");
+    const recipe = getRecord(data, "recipe") ?? (single.length ? single[0] : undefined) ?? data ?? result;
     this.assertVendorResponse(McRecipeCreateResponseSchema, recipe, "api/v3/auth/user/recipes/");
     return recipe;
   }
@@ -240,9 +242,9 @@ export class MonsieurCuisineSmartClient {
     const query = mediaIds.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&");
     const result = await this.proxy({ endpoint: `api/v1/media?${query}`, locale });
     const data = getRecord(result, "data");
-    // Vendor shape drift 2026-10: the media list comes back as { media: [...] } on the
-    // proxy result top level (historically under data.media). getArray is required:
-    // getRecord only unwraps object children, never arrays.
+    // Unwrap via getArray: getRecord only returns object children, never arrays.
+    // Live-verified 2026-10-06: shape is { code, message, data: { media: [...] } };
+    // while processing the list is empty — report [] so waitForMedia keeps polling.
     const topLevel = getArray(result, "media");
     const nested = getArray(data, "media");
     if (topLevel.length) {
