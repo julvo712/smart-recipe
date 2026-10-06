@@ -22,4 +22,4 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 # Playwright's bundled Chromium lives outside node_modules; install it once here.
 RUN npx playwright install chromium && chmod -R o+rwx /root/.cache/ms-playwright || true
-ENTRYPOINT ["node", "dist/cli/main.js"]
+ENTRYPOINT ["node", "/app/dist/cli/main.js"]
