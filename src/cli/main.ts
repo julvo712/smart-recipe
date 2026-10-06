@@ -274,8 +274,8 @@ function addImportOptions(cmd: Command): Command {
     .option("--always-upload", "Always upload without asking for confirmation")
     .option("--full-response", "Print the full result object")
     .option("--no-print-markdown", "Do not pretty-print the retrieved markdown to the console")
-    .option("--model <model>", "OpenAI model", process.env.OPENAI_MODEL ?? "gpt-5.5")
-    .option("--reasoning <effort>", "OpenAI reasoning effort: minimal, low, medium, high", process.env.OPENAI_REASONING_EFFORT ?? "medium")
+    .option("--model <model>", "OpenAI model", process.env.OPENAI_MODEL ?? "glm-5.3-flash")
+    .option("--reasoning <effort>", "OpenAI reasoning effort: minimal, low, medium, high", process.env.OPENAI_REASONING_EFFORT ?? "high")
     .option("--recreate-image", "Generate a new recipe image with OpenAI instead of uploading the source image")
     .option("--recreate-image-with-source-images", "When recreating the image, send downloaded website images as loose visual context")
     .option("--image-reference-source", "Alias for --recreate-image-with-source-images")
@@ -395,6 +395,8 @@ program
   .option("--title <title>", "Custom recipe title");
 addImportOptions(program.commands.at(-1)!);
 program.commands.at(-1)!.action(async (paths, options) => {
+  const isInteractive = Boolean(!program.optsWithGlobals().json && process.stdout.isTTY && process.stdin.isTTY);
+  await ensureOpenAIKey(isInteractive, GLOBAL_ENV_PATH);
   const page = await transcribeRecipePhotos(paths as string[], {
     title: options.title,
     locale: options.locale

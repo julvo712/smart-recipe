@@ -42,7 +42,8 @@ describe("transcribeRecipePhotos", () => {
     expect(page.title).toBe("page");
     expect(page.markdown).toContain("## Ingredients");
     expect(page.images).toHaveLength(1);
-    expect(page.images[0].dataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(page.images[0].dataUrl).toBeUndefined();
+    expect(page.images[0].bytes).toBeInstanceOf(Uint8Array); // cover-image upload uses bytes, never dataUrl
 
     const body = captured[0] as { model: string; messages: Array<{ content: unknown }> };
     expect(body.model).toBe("vl-test");

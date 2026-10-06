@@ -75,7 +75,10 @@ export async function transcribeRecipePhotos(
     throw new Error("No photo paths given.");
   }
   const logger = options.logger ?? createLogger();
-  const client = options.client ?? new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "ollama" });
+  const client = options.client ?? new OpenAI({
+    baseURL: process.env.OPENAI_BASE_URL ?? "https://ollama.com/v1",
+    apiKey: process.env.OPENAI_API_KEY || "ollama"
+  });
   const model = options.model ?? visionModelName();
   const locale = options.locale ?? "de-DE";
 
@@ -133,7 +136,13 @@ export async function transcribeRecipePhotos(
     title: fallbackTitle,
     markdown,
     html: "",
-    images: loaded.map((photo) => photo.image)
+    images: loaded.map((photo) => ({
+      url: photo.image.url,
+      contentType: photo.image.contentType,
+      bytes: photo.image.bytes,
+      score: photo.image.score,
+      reason: photo.image.reason
+    }))
   };
 }
 

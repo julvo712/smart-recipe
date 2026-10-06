@@ -19,7 +19,9 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
   private readonly defaults: GenerationDefaults;
 
   constructor(options: OpenAIRecipeGeneratorOptions) {
-    this.client = options.client ?? new OpenAI();
+    this.client = options.client ?? new OpenAI({
+      baseURL: process.env.OPENAI_BASE_URL ?? "https://ollama.com/v1"
+    });
     this.defaults = {
       model: options.model ?? process.env.OPENAI_MODEL ?? "glm-5.3-flash",
       reasoningEffort: options.reasoningEffort ?? parseReasoningEffort(process.env.OPENAI_REASONING_EFFORT ?? "high"),
