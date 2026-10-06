@@ -10,7 +10,7 @@ import type { SmartRecipePayload } from "../recipes/types.js";
 import { assertSmartRecipePayload } from "../recipes/validation.js";
 import type { SupportedLocale } from "../catalogs/types.js";
 import { validateApiResponse } from "../devices/response-validation.js";
-import { getArray, getRecord } from "../utils/unknown.js";
+import { getArray, getRecord, isRecord } from "../utils/unknown.js";
 
 export interface MonsieurCuisineSmartClientOptions {
   cookie?: string;
@@ -240,12 +240,25 @@ export class MonsieurCuisineSmartClient {
     const query = mediaIds.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&");
     const result = await this.proxy({ endpoint: `api/v1/media?${query}`, locale });
     const data = getRecord(result, "data");
-    // Vendor shape drift 2026-10: the media list now comes back as { media: [...] }
-    // on the proxy result top level; historically it was nested under data.media.
-    // getArray is required here: getRecord only unwraps object children, never arrays.
+    // Vendor shape drift 2026-10: the media list comes back as { media: [...] } on the
+    // proxy result top level (historically under data.media). getArray is required:
+    // getRecord only unwraps object children, never arrays.
     const topLevel = getArray(result, "media");
     const nested = getArray(data, "media");
-    const media = topLevel.length ? topLevel : nested.length ? nested : data ?? result;
+    if (topLevel.length) {
+      this.assertVendorResponse(McMediaListResponseSchema, topLevel, `api/v1/media?${query}`);
+      return topLevel;
+    }
+    if (nested.length) {
+      this.assertVendorResponse(McMediaListResponseSchema, nested, `api/v1/media?${query}`);
+      return nested;
+    }
+    // Still processing: the vendor returns { media: [] } (or omits the list) until the
+    // upload has finished — report an empty list so waitForMedia keeps polling.
+    if ((isRecord(result) && "media" in result) || (isRecord(data) && "media" in data)) {
+      return [];
+    }
+    const media = data ?? result;
     this.assertVendorResponse(McMediaListResponseSchema, media, `api/v1/media?${query}`);
     return media;
   }

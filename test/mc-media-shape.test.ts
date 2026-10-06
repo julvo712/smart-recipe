@@ -44,4 +44,22 @@ describe("MonsieurCuisineSmartClient.getMedia shape tolerance", () => {
     const media = await client.getMedia([10668203]);
     expect(media).toEqual(VENDOR_MEDIA_WRAPPER_BODY.media);
   });
+
+  it("treats a transiently empty media list as empty, not a shape error", async () => {
+    const client = new MonsieurCuisineSmartClient({
+      authProvider,
+      fetch: fetchReturning({ media: [] } as never)
+    });
+    const media = await client.getMedia([10668203]);
+    expect(media).toEqual([]);
+  });
+
+  it("treats a nested empty (data.media: []) list as empty during processing", async () => {
+    const client = new MonsieurCuisineSmartClient({
+      authProvider,
+      fetch: fetchReturning({ data: { media: [] } } as never)
+    });
+    const media = await client.getMedia([10668206]);
+    expect(media).toEqual([]);
+  });
 });
