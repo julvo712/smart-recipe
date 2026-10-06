@@ -27,6 +27,8 @@ if [[ "${1:-}" == "login-cookie" ]]; then
     cookie="$(pbpaste)"
     echo "Using cookie from clipboard ($(printf '%s' "$cookie" | wc -c | tr -d ' ') chars)."
   else
+    # backticks are intentionally literal prompt text — no command substitution wanted
+    # shellcheck disable=SC2016
     printf 'Paste the full Cookie header (or copy it to the clipboard first and rerun `mcs.sh login-cookie`): '
     read -r cookie
   fi
