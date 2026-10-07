@@ -44,8 +44,16 @@ const server = createServer((req, res) => {
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {
+        const msg = String(e && e.message ? e.message : e);
+        // Already favorited is an idempotent success (vendor answers HTTP 409).
+        if (msg.includes("409")) {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: true, duplicate: true }));
+          return;
+        }
+        console.log(`[mc-convert] bookmark ${body.translationId} failed: ${msg}`);
         res.writeHead(502, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: String(e && e.message ? e.message : e) }));
+        res.end(JSON.stringify({ error: msg }));
       }
     });
     return;
