@@ -4,13 +4,126 @@
 // + effort high + base https://ollama.com/v1 are baked into the fork).
 import process from "node:process";
 import { createServer } from "node:http";
-import { importRecipe, MonsieurCuisineAdapter, MonsieurCuisineSmartClient } from "../dist/index.js";
+import { writeFile, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { importRecipe, MonsieurCuisineAdapter, MonsieurCuisineSmartClient, RecipePageRetriever, transcribeRecipePhotos } from "../dist/index.js";
+
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGES = 6;
 
 const PORT = Number(process.env.PORT ?? 8200);
 const LOCALE = process.env.MC_LOCALE ?? "de-DE";
 
 function pageOf(title, markdown) {
   return { url: "", finalUrl: "", title: title ?? "Rezept", markdown: markdown ?? "", html: "", images: [] };
+}
+
+function handleIngestUrl(req, res) {
+  const start = Date.now();
+  readBody(req, res, async (err, buf) => {
+    if (err || buf === null) return;
+    let body;
+    try { body = JSON.parse(buf.toString("utf8")); } catch {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "invalid json" }));
+      return;
+    }
+    if (!body.url || !/^https?:\/\//.test(String(body.url))) {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "missing or invalid url" }));
+      return;
+    }
+    try {
+      const page = await new RecipePageRetriever().retrieve(String(body.url));
+      console.log(`[mc-convert] ingest-url ${body.url} bytes=${buf.length} markdown=${(page.markdown ?? "").length}ms=${Date.now() - start}`);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ markdown: page.markdown ?? "", title: page.title ?? "Rezept" }));
+    } catch (e) {
+      console.log(`[mc-convert] ingest-url ${body.url} failed after ${Date.now() - start}ms: ${String(e && e.message ? e.message : e)}`);
+      res.writeHead(502, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: String(e && e.message ? e.message : e) }));
+    }
+  });
+}
+
+function handleTranscribe(req, res) {
+  const start = Date.now();
+  readBody(req, res, async (err, buf) => {
+    if (err || buf === null) return;
+    let body;
+    try { body = JSON.parse(buf.toString("utf8")); } catch {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "invalid json" }));
+      return;
+    }
+    const images = Array.isArray(body.images) ? body.images : null;
+    if (!images || images.length === 0) {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "missing images array" }));
+      return;
+    }
+    if (images.length > MAX_IMAGES) {
+      tooLarge(res, `too many images: ${images.length} > ${MAX_IMAGES}`);
+      return;
+    }
+    // Decode data URLs up front; a malformed image aborts before any tmp writes pile up.
+    const buffers = [];
+    for (let i = 0; i < images.length; i++) {
+      const m = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(images[i]));
+      if (!m) {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: `malformed data URL at images[${i}]` }));
+        return;
+      }
+      try { buffers.push(Buffer.from(m[2], "base64")); } catch {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: `undecodable base64 at images[${i}]` }));
+        return;
+      }
+    }
+    const paths = [];
+    try {
+      for (let i = 0; i < buffers.length; i++) {
+        const p = `/tmp/mc-sidecar-img-${randomUUID()}.jpg`;
+        await writeFile(p, buffers[i]);
+        paths.push(p);
+      }
+      const page = await transcribeRecipePhotos(paths, { locale: body.locale ?? LOCALE });
+      console.log(`[mc-convert] transcribe images=${images.length} bytes=${buf.length} markdown=${(page.markdown ?? "").length}ms=${Date.now() - start}`);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ markdown: page.markdown ?? "", title: page.title ?? "Rezept" }));
+    } catch (e) {
+      console.log(`[mc-convert] transcribe failed after ${Date.now() - start}ms: ${String(e && e.message ? e.message : e)}`);
+      res.writeHead(502, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: String(e && e.message ? e.message : e) }));
+    } finally {
+      for (const p of paths) await unlink(p).catch(() => {});
+    }
+  });
+}
+
+function tooLarge(res, msg) {
+  console.log(`[mc-convert] rejected: ${msg}`);
+  res.writeHead(413, { "content-type": "application/json" });
+  res.end(JSON.stringify({ error: msg }));
+}
+
+// Reads the request body, enforcing MAX_BODY_BYTES.
+function readBody(req, res, cb) {
+  const chunks = [];
+  let size = 0;
+  req.on("data", (c) => {
+    size += c.length;
+    if (size > MAX_BODY_BYTES) {
+      req.removeAllListeners("data");
+      req.removeAllListeners("end");
+      tooLarge(res, `body exceeds ${MAX_BODY_BYTES} bytes`);
+      return;
+    }
+    chunks.push(c);
+  });
+  req.on("end", () => cb(null, Buffer.concat(chunks)));
+  req.on("error", (e) => cb(e, null));
 }
 
 const server = createServer((req, res) => {
@@ -78,6 +191,14 @@ const server = createServer((req, res) => {
     })();
     return;
   }
+  if (req.method === "POST" && req.url === "/ingest-url") {
+    handleIngestUrl(req, res);
+    return;
+  }
+  if (req.method === "POST" && req.url === "/transcribe") {
+    handleTranscribe(req, res);
+    return;
+  }
   if (req.method !== "POST" || req.url !== "/convert") {
     res.writeHead(404, { "content-type": "application/json" });
     res.end(JSON.stringify({ error: "use POST /convert" }));
@@ -118,6 +239,14 @@ const server = createServer((req, res) => {
       res.writeHead(502, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: String(e && e.message ? e.message : e) }));
     }
+  });
+});
+
+server.on("connection", (socket) => {
+  socket.setTimeout(120000);
+  socket.on("timeout", () => {
+    console.log(`[mc-convert] socket idle >120s, destroying ${socket.remoteAddress ?? ""}`);
+    socket.destroy();
   });
 });
 
